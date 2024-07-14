@@ -7,6 +7,7 @@ const routes = require("./routes/publicRoute");
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// app.use(abortMiddleware(5000))
 app.use("/", routes);
 
 const server = http.createServer(app);
