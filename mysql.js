@@ -1,8 +1,24 @@
 const mysql = require('mysql2/promise');
 
 const pool = mysql.createPool({
-   
+    host: 'localhost',
+    user: 'root',
+    password: "!!19$^ashiK!!19$^ROOTPass@@@@",
+    database: 'boiler_plate'
 });
+
+
+const checkPoolStatus = async () => {
+    try {
+        const connection = await pool.getConnection();
+        connection.release();
+        return 'Connection pool is healthy';
+    } catch (error) {
+        return 'Connection pool is not healthy: ' + error.message;
+    }
+};
+
+checkPoolStatus().then(console.log).catch(console.error);
 
 class AbortError extends Error {
     constructor(message) {
@@ -11,25 +27,29 @@ class AbortError extends Error {
     }
 }
 
-const executeQuery = async (signal) => {
+const executeQuery = async (query, signal = null) => {
     const connection = await pool.getConnection();
 
-    signal.addEventListener("abort", () => {
-        connection.destroy();
-        throw new AbortError("Query aborted due to timeout");
-    });
-
     return new Promise((resolve, reject) => {
-        connection.query('SELECT SLEEP(10)', (error, results) => { // Example long-running query
-            if (signal.aborted) return;
-
-            if (error) {
-                return reject(error);
-            }
-            resolve(results);
+        signal && signal.addEventListener("abort", () => {
+            connection.destroy();
+            reject(new AbortError("Query aborted due to timeout"));
         });
-    }).finally(() => {
-        connection.release();
+    
+        connection.query(query)
+            .then(([results]) => {
+                if (!signal.aborted) {
+                    resolve(results);
+                }
+            })
+            .catch((error) => {
+                if (!signal.aborted) {
+                    reject(error);
+                }
+            })
+            .finally(() => {
+                connection.release();
+            });
     });
 };
 
